@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#9b4000"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="Snapledger"/>
+<title>Snapledger Simpel</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        "surface": "#fcf9f8",
+        "surface-dim": "#dcd9d9",
+        "surface-container-lowest": "#ffffff",
+        "surface-container-low": "#f6f3f2",
+        "surface-container": "#f0eded",
+        "surface-container-high": "#eae7e7",
+        "on-surface": "#1b1c1c",
+        "on-surface-variant": "#584237",
+        "outline-variant": "#e0c0b1",
+        "primary": "#9b4000",
+        "on-primary": "#ffffff",
+        "secondary": "#7a5736",
+        "on-secondary": "#ffffff",
+        "secondary-container": "#fecea5",
+        "on-secondary-container": "#795635",
+        "outline": "#8c7165",
+      },
+      fontFamily: { sans: ["Plus Jakarta Sans", "sans-serif"] },
+      borderRadius: { "2xl": "1rem", "3xl": "1.5rem" }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+  body { background: #fcf9f8; color: #1b1c1c; overscroll-behavior: none; }
+  .view { display: none; }
+  .view.active { display: flex; flex-direction: column; min-height: 100dvh; }
+  .pb-safe { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
+  ::-webkit-scrollbar { display: none; }
+  .tag-btn.selected { background: #fecea5; color: #795635; border-color: #fecea5; }
+  .tag-btn { background: #fff; color: #584237; border: 1px solid #e0c0b1; transition: all .15s; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { animation: spin .8s linear infinite; }
+  @keyframes fadein { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .fadein { animation: fadein .3s ease; }
+  .toast { position:fixed; bottom:6rem; left:50%; transform:translateX(-50%); z-index:999; padding:.75rem 1.5rem; border-radius:9999px; font-size:14px; font-weight:600; color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.15); transition:opacity .3s; pointer-events:none; }
+  .toast.success { background:#2e7d32; }
+  .toast.error { background:#c62828; }
+  .toast.info { background:#9b4000; }
+  input[type=file] { display:none; }
+  .preview-img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:1.5rem; }
+  .nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:.5rem; border-radius:.75rem; transition:all .15s; color:#7a5736; font-size:11px; font-weight:500; }
+  .nav-btn.active { background:#fecea5; color:#795635; border-radius:9999px; padding:.5rem 1.25rem; }
+  .card-shadow { box-shadow: 0 4px 12px rgba(92,61,30,.08); }
+  .btn-primary { background:#9b4000; color:#fff; border-radius:1rem; height:3.5rem; font-size:14px; font-weight:600; letter-spacing:.01em; display:flex; align-items:center; justify-content:center; gap:.5rem; transition:transform .15s, opacity .15s; }
+  .btn-primary:active { transform:scale(.97); opacity:.9; }
+  .btn-primary:disabled { opacity:.6; }
+  .btn-secondary { background:#fff; color:#7a5736; border:1px solid rgba(122,87,54,.2); border-radius:1rem; height:3.5rem; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:.5rem; transition:transform .15s; }
+  .btn-secondary:active { transform:scale(.97); }
+  .viewfinder { width:100%; aspect-ratio:4/3; border-radius:1.5rem; border:2px dashed #e0c0b1; background:#f6f3f2; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.5rem; cursor:pointer; transition:border-color .15s; }
+  .viewfinder:active { border-color:#9b4000; }
+  .status-badge { display:inline-flex; align-items:center; gap:.25rem; padding:.25rem .75rem; border-radius:9999px; font-size:11px; font-weight:600; }
+  .status-pending { background:#fff3e0; color:#e65100; }
+  .status-sent { background:#e8f5e9; color:#2e7d32; }
+  .status-failed { background:#ffebee; color:#c62828; }
+
+  /* Chibi mascot SVG */
+  .mascot-container { width:160px; height:160px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     TOAST
+════════════════════════════════════════════ -->
+<div id="toast" class="toast" style="opacity:0"></div>
+
+<!-- ════════════════════════════════════════════
+     INPUT FILE (hidden)
+════════════════════════════════════════════ -->
+<input type="file" id="inputKamera" accept="image/*" capture="environment"/>
+<input type="file" id="inputGaleri" accept="image/*"/>
+
+<!-- ════════════════════════════════════════════
+     VIEW 1 — BERANDA
+════════════════════════════════════════════ -->
+<div id="view-home" class="view active">
+  <!-- Header -->
+  <header class="sticky top-0 z-40 bg-surface flex justify-between items-center px-5 h-14">
+    <div class="flex items-center gap-2">
+      <span class="material-symbols-outlined text-primary text-2xl">account_circle</span>
+      <span style="font-size:22px;font-weight:700;color:#9b4000;letter-spacing:-.01em;">Snapledger</span>
+    </div>
+    <button onclick="showSettings()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-on-surface-variant">settings</span>
+    </button>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 flex flex-col px-5 pt-4 pb-32 gap-6 max-w-md mx-auto w-full overflow-y-auto">
+
+    <!-- Mascot + Tagline -->
+    <section class="flex flex-col items-center text-center gap-4 pt-2">
+      <!-- Chibi SVG Mascot -->
+      <div class="mascot-container">
+        <svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" width="160" height="160">
+          <!-- Shadow -->
+          <ellipse cx="80" cy="148" rx="30" ry="6" fill="rgba(92,61,30,.12)"/>
+          <!-- Body -->
+          <rect x="52" y="92" width="56" height="44" rx="12" fill="#E8650A"/>
+          <!-- Safety vest lines -->
+          <line x1="80" y1="92" x2="80" y2="136" stroke="#fff" stroke-width="3" stroke-dasharray="4,3" opacity=".5"/>
+          <rect x="60" y="105" width="40" height="6" rx="3" fill="#FFD54F" opacity=".8"/>
+          <!-- Arms -->
+          <rect x="34" y="94" width="20" height="10" rx="5" fill="#E8650A"/>
+          <rect x="106" y="94" width="20" height="10" rx="5" fill="#E8650A"/>
+          <!-- Clipboard in right hand -->
+          <rect x="118" y="90" width="16" height="20" rx="2" fill="#fff" stroke="#e0c0b1" stroke-width="1"/>
+          <line x1="121" y1="96" x2="131" y2="96" stroke="#e0c0b1" stroke-width="1.5"/>
+          <line x1="121" y1="100" x2="131" y2="100" stroke="#e0c0b1" stroke-width="1.5"/>
+          <line x1="121" y1="104" x2="128" y2="104" stroke="#e0c0b1" stroke-width="1.5"/>
+          <!-- Legs -->
+          <rect x="58" y="132" width="16" height="20" rx="6" fill="#5C3D1E"/>
+          <rect x="86" y="132" width="16" height="20" rx="6" fill="#5C3D1E"/>
+          <!-- Boots -->
+          <rect x="55" y="147" width="22" height="10" rx="4" fill="#2C2C2C"/>
+          <rect x="83" y="147" width="22" height="10" rx="4" fill="#2C2C2C"/>
+          <!-- Neck -->
+          <rect x="70" y="82" width="20" height="14" rx="4" fill="#FFCCAA"/>
+          <!-- Head (big chibi) -->
+          <ellipse cx="80" cy="62" rx="34" ry="32" fill="#FFCCAA"/>
+          <!-- Eyes - serious look -->
+          <ellipse cx="68" cy="60" rx="6" ry="7" fill="#fff"/>
+          <ellipse cx="92" cy="60" rx="6" ry="7" fill="#fff"/>
+          <circle cx="69" cy="61" r="4" fill="#2C2C2C"/>
+          <circle cx="93" cy="61" r="4" fill="#2C2C2C"/>
+          <circle cx="70" cy="60" r="1.5" fill="#fff"/>
+          <circle cx="94" cy="60" r="1.5" fill="#fff"/>
+          <!-- Serious eyebrows (angled down) -->
+          <line x1="62" y1="51" x2="74" y2="54" stroke="#5C3D1E" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="86" y1="54" x2="98" y2="51" stroke="#5C3D1E" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Mouth - straight line, serious -->
+          <line x1="73" y1="74" x2="87" y2="74" stroke="#C2846A" stroke-width="2" stroke-linecap="round"/>
+          <!-- Cheeks -->
+          <ellipse cx="60" cy="69" rx="6" ry="4" fill="#FFAB91" opacity=".5"/>
+          <ellipse cx="100" cy="69" rx="6" ry="4" fill="#FFAB91" opacity=".5"/>
+          <!-- Hard hat -->
+          <path d="M44 58 Q44 30 80 28 Q116 30 116 58 L112 62 Q80 55 48 62 Z" fill="#FFD54F"/>
+          <rect x="40" y="58" width="80" height="8" rx="4" fill="#FFC107"/>
+          <!-- Hat brim highlight -->
+          <rect x="44" y="58" width="72" height="3" rx="2" fill="#FFE57F" opacity=".6"/>
+          <!-- Floating icons -->
+          <text x="20" y="35" font-size="14" opacity=".4">📷</text>
+          <text x="128" y="40" font-size="12" opacity=".35">📋</text>
+          <text x="14" y="110" font-size="11" opacity=".3">📏</text>
+          <text x="136" y="115" font-size="11" opacity=".3">🔧</text>
+        </svg>
+      </div>
+      <div>
+        <h1 style="font-size:22px;font-weight:700;color:#1b1c1c;line-height:1.3;">Dokumentasi Proyek,<br/>Simpel &amp; Cepat</h1>
+        <p style="font-size:13px;color:#584237;margin-top:.5rem;" id="home-webhook-hint">Hubungkan ke n8n untuk mulai</p>
+      </div>
+    </section>
+
+    <!-- CTA Button -->
+    <button onclick="goTo('view-foto')" class="w-full btn-primary shadow-lg" style="box-shadow:0 4px 12px rgba(232,101,10,.2);">
+      <span class="material-symbols-outlined" style="font-size:20px;">add_a_photo</span>
+      Tambah Foto
+    </button>
+
+    <!-- Stats mini -->
+    <div class="grid grid-cols-3 gap-3" id="home-stats">
+      <div class="card-shadow bg-white rounded-2xl p-3 text-center">
+        <div style="font-size:22px;font-weight:700;color:#9b4000;" id="stat-total">0</div>
+        <div style="font-size:11px;color:#584237;margin-top:2px;">Total</div>
+      </div>
+      <div class="card-shadow bg-white rounded-2xl p-3 text-center">
+        <div style="font-size:22px;font-weight:700;color:#2e7d32;" id="stat-sent">0</div>
+        <div style="font-size:11px;color:#584237;margin-top:2px;">Terkirim</div>
+      </div>
+      <div class="card-shadow bg-white rounded-2xl p-3 text-center">
+        <div style="font-size:22px;font-weight:700;color:#e65100;" id="stat-pending">0</div>
+        <div style="font-size:11px;color:#584237;margin-top:2px;">Pending</div>
+      </div>
+    </div>
+
+    <!-- Recent list -->
+    <section>
+      <div class="flex justify-between items-center mb-3">
+        <h2 style="font-size:18px;font-weight:600;color:#1b1c1c;">Catatan Terbaru</h2>
+        <button onclick="goTo('view-galeri')" style="font-size:12px;color:#9b4000;font-weight:600;">Lihat Semua</button>
+      </div>
+      <div id="home-recent" class="flex flex-col gap-3">
+        <!-- Populated by JS -->
+        <div class="card-shadow bg-white rounded-3xl p-4 flex items-center justify-center" style="height:80px;">
+          <p style="color:#8c7165;font-size:13px;">Belum ada catatan</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="fixed bottom-0 w-full z-50 bg-surface rounded-t-2xl flex justify-around items-center h-20 pb-safe" style="box-shadow:0 -4px 12px rgba(92,61,30,.08);">
+    <button onclick="goTo('view-home')" class="nav-btn active" id="nav-home">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;font-size:22px;">home</span>
+      <span>Beranda</span>
+    </button>
+    <button onclick="goTo('view-galeri')" class="nav-btn" id="nav-galeri">
+      <span class="material-symbols-outlined" style="font-size:22px;">photo_library</span>
+      <span>Galeri</span>
+    </button>
+    <button onclick="goTo('view-settings')" class="nav-btn" id="nav-settings">
+      <span class="material-symbols-outlined" style="font-size:22px;">settings</span>
+      <span>Pengaturan</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ════════════════════════════════════════════
+     VIEW 2 — AMBIL FOTO
+════════════════════════════════════════════ -->
+<div id="view-foto" class="view">
+  <!-- Header -->
+  <header class="sticky top-0 z-40 bg-surface flex items-center px-5 h-14 gap-3">
+    <button onclick="goTo('view-home')" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+    </button>
+    <h1 style="font-size:18px;font-weight:700;color:#1b1c1c;flex:1;">Ambil Foto</h1>
+  </header>
+
+  <main class="flex-1 flex flex-col px-5 pt-4 pb-36 gap-5 max-w-md mx-auto w-full overflow-y-auto">
+
+    <!-- Viewfinder / Preview -->
+    <div id="viewfinder-area" class="viewfinder" onclick="document.getElementById('inputKamera').click()">
+      <span class="material-symbols-outlined" style="font-size:48px;color:#8c7165;opacity:.5;">add_a_photo</span>
+      <span style="font-size:13px;color:#8c7165;opacity:.7;font-weight:600;">Ketuk untuk mulai</span>
+    </div>
+    <img id="preview-img" class="preview-img hidden" src="" alt="Preview"/>
+
+    <!-- Tombol Kamera / Galeri -->
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('inputKamera').click()" class="btn-primary flex-1" style="box-shadow:0 4px 12px rgba(155,64,0,.15);">
+        <span class="material-symbols-outlined" style="font-size:20px;font-variation-settings:'FILL' 1;">photo_camera</span>
+        Kamera
+      </button>
+      <button onclick="document.getElementById('inputGaleri').click()" class="btn-secondary flex-1">
+        <span class="material-symbols-outlined" style="font-size:20px;">image</span>
+        Galeri
+      </button>
+    </div>
+
+    <!-- Form Keterangan -->
+    <div class="flex flex-col gap-2">
+      <label style="font-size:12px;font-weight:500;color:#584237;letter-spacing:.04em;">KETERANGAN</label>
+      <div class="card-shadow bg-white rounded-2xl border border-outline-variant/30 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary" style="transition:border .15s;">
+        <textarea id="input-keterangan" class="w-full bg-transparent border-none p-4 resize-none focus:outline-none focus:ring-0" rows="4"
+          placeholder="Tulis catatan lokasi, kondisi, atau progres..."></textarea>
+      </div>
+    </div>
+
+    <!-- Nama Proyek (opsional) -->
+    <div class="flex flex-col gap-2">
+      <label style="font-size:12px;font-weight:500;color:#584237;letter-spacing:.04em;">NAMA PROYEK (OPSIONAL)</label>
+      <div class="card-shadow bg-white rounded-2xl border border-outline-variant/30 px-4 py-3 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary" style="transition:border .15s;">
+        <input id="input-proyek" type="text" class="w-full bg-transparent border-none focus:outline-none focus:ring-0" placeholder="Cth: Renovasi Kantor Lt.3"/>
+      </div>
+    </div>
+
+    <!-- Tags -->
+    <div class="flex flex-col gap-2">
+      <label style="font-size:12px;font-weight:500;color:#584237;letter-spacing:.04em;">TAG</label>
+      <div class="flex flex-wrap gap-2" id="tag-container">
+        <button class="tag-btn px-4 py-2 rounded-full font-semibold text-sm" onclick="toggleTag(this,'#Progres')">#Progres</button>
+        <button class="tag-btn px-4 py-2 rounded-full font-semibold text-sm" onclick="toggleTag(this,'#Masalah')">#Masalah</button>
+        <button class="tag-btn px-4 py-2 rounded-full font-semibold text-sm" onclick="toggleTag(this,'#Selesai')">#Selesai</button>
+        <button class="tag-btn px-4 py-2 rounded-full font-semibold text-sm" onclick="toggleTag(this,'#Material')">#Material</button>
+        <button class="tag-btn px-4 py-2 rounded-full font-semibold text-sm" onclick="toggleTag(this,'#Jasa')">#Jasa</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Floating Save Button -->
+  <div class="fixed bottom-0 left-0 right-0 px-5 pb-6 pt-3 bg-gradient-to-t from-surface via-surface to-transparent z-40 max-w-md mx-auto">
+    <button id="btn-simpan" onclick="simpanDanKirim()" class="btn-primary w-full" style="height:56px;font-size:15px;box-shadow:0 4px 16px rgba(155,64,0,.2);">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">send</span>
+      Simpan &amp; Kirim ke n8n
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     VIEW 3 — GALERI
+════════════════════════════════════════════ -->
+<div id="view-galeri" class="view">
+  <header class="sticky top-0 z-40 bg-surface flex justify-between items-center px-5 h-14">
+    <span style="font-size:18px;font-weight:700;color:#1b1c1c;">Galeri Catatan</span>
+    <button onclick="clearAllData()" style="font-size:12px;color:#c62828;font-weight:600;">Hapus Semua</button>
+  </header>
+
+  <!-- Search -->
+  <div class="px-5 pt-3 pb-2 sticky top-14 z-30 bg-surface">
+    <div class="relative">
+      <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-size:20px;">search</span>
+      <input id="search-input" type="text" oninput="filterGaleri(this.value)"
+        class="w-full h-12 pl-12 pr-4 bg-white rounded-xl border border-secondary/10 focus:outline-none focus:border-primary/30 text-sm"
+        placeholder="Cari catatan..."/>
+    </div>
+    <!-- Filter pills -->
+    <div class="flex gap-2 mt-2 overflow-x-auto pb-1" style="-ms-overflow-style:none;scrollbar-width:none;">
+      <button onclick="setFilter('semua',this)" class="filter-pill px-4 h-9 rounded-full text-xs font-semibold whitespace-nowrap active-pill" style="background:#fecea5;color:#795635;">Semua</button>
+      <button onclick="setFilter('sent',this)" class="filter-pill px-4 h-9 rounded-full text-xs font-semibold whitespace-nowrap bg-white border border-outline-variant/50 text-on-surface-variant">Terkirim</button>
+      <button onclick="setFilter('pending',this)" class="filter-pill px-4 h-9 rounded-full text-xs font-semibold whitespace-nowrap bg-white border border-outline-variant/50 text-on-surface-variant">Pending</button>
+      <button onclick="setFilter('failed',this)" class="filter-pill px-4 h-9 rounded-full text-xs font-semibold whitespace-nowrap bg-white border border-outline-variant/50 text-on-surface-variant">Gagal</button>
+    </div>
+  </div>
+
+  <main class="flex-1 overflow-y-auto px-5 pt-2 pb-28 max-w-md mx-auto w-full">
+    <div id="galeri-grid" class="grid grid-cols-2 gap-3">
+      <!-- Populated by JS -->
+    </div>
+    <div id="galeri-empty" class="flex flex-col items-center justify-center py-16 gap-3 hidden">
+      <span class="material-symbols-outlined" style="font-size:48px;color:#e0c0b1;">photo_library</span>
+      <p style="color:#8c7165;font-size:13px;">Belum ada catatan tersimpan</p>
+    </div>
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="fixed bottom-0 w-full z-50 bg-surface rounded-t-2xl flex justify-around items-center h-20 pb-safe" style="box-shadow:0 -4px 12px rgba(92,61,30,.08);">
+    <button onclick="goTo('view-home')" class="nav-btn" id="nav2-home">
+      <span class="material-symbols-outlined" style="font-size:22px;">home</span>
+      <span>Beranda</span>
+    </button>
+    <button onclick="goTo('view-galeri')" class="nav-btn active" id="nav2-galeri">
+      <span class="material-symbols-outlined" style="font-size:22px;font-variation-settings:'FILL' 1;">photo_library</span>
+      <span>Galeri</span>
+    </button>
+    <button onclick="goTo('view-settings')" class="nav-btn" id="nav2-settings">
+      <span class="material-symbols-outlined" style="font-size:22px;">settings</span>
+      <span>Pengaturan</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ════════════════════════════════════════════
+     VIEW 4 — SETTINGS / WEBHOOK CONFIG
+════════════════════════════════════════════ -->
+<div id="view-settings" class="view">
+  <header class="sticky top-0 z-40 bg-surface flex items-center px-5 h-14 gap-3">
+    <button onclick="goBack()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors">
+      <span class="material-symbols-outlined text-on-surface-variant">arrow_back</span>
+    </button>
+    <h1 style="font-size:18px;font-weight:700;color:#1b1c1c;">Pengaturan</h1>
+  </header>
+
+  <main class="flex-1 flex flex-col px-5 pt-4 pb-10 gap-5 max-w-md mx-auto w-full overflow-y-auto">
+
+    <!-- Webhook URL -->
+    <div class="card-shadow bg-white rounded-3xl p-5 flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl flex items-center justify-center" style="background:#fff3e0;">
+          <span class="material-symbols-outlined" style="color:#e65100;font-size:20px;">webhook</span>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#1b1c1c;">n8n Webhook URL</div>
+          <div style="font-size:11px;color:#584237;">Endpoint POST dari n8n workflow</div>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-outline-variant/30 overflow-hidden focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+        <input id="webhook-url" type="url" class="w-full bg-transparent border-none p-4 text-sm focus:outline-none focus:ring-0" placeholder="https://your-n8n.com/webhook/snapledger"/>
+      </div>
+      <button onclick="simpanWebhook()" class="btn-primary w-full" style="height:48px;">
+        <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+        Simpan URL
+      </button>
+    </div>
+
+    <!-- Test Connection -->
+    <div class="card-shadow bg-white rounded-3xl p-5 flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl flex items-center justify-center" style="background:#e8f5e9;">
+          <span class="material-symbols-outlined" style="color:#2e7d32;font-size:20px;">cable</span>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#1b1c1c;">Test Koneksi</div>
+          <div style="font-size:11px;color:#584237;">Kirim data dummy ke webhook</div>
+        </div>
+      </div>
+      <button onclick="testWebhook()" class="btn-secondary w-full" style="height:48px;">
+        <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+        Kirim Test Ping
+      </button>
+      <div id="test-result" class="rounded-xl p-3 text-xs font-mono hidden"></div>
+    </div>
+
+    <!-- Retry failed -->
+    <div class="card-shadow bg-white rounded-3xl p-5 flex flex-col gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl flex items-center justify-center" style="background:#fff8e1;">
+          <span class="material-symbols-outlined" style="color:#f9a825;font-size:20px;">sync</span>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:#1b1c1c;">Kirim Ulang Pending</div>
+          <div style="font-size:11px;color:#584237;" id="pending-count-label">0 item pending/gagal</div>
+        </div>
+      </div>
+      <button onclick="retrySemua()" class="btn-secondary w-full" style="height:48px;">
+        <span class="material-symbols-outlined" style="font-size:18px;">replay</span>
+        Retry Semua
+      </button>
+    </div>
+
+    <!-- Payload format info -->
+    <div class="card-shadow bg-white rounded-3xl p-5 flex flex-col gap-3">
+      <div style="font-size:13px;font-weight:600;color:#1b1c1c;">📦 Format Payload ke n8n</div>
+      <pre style="font-size:11px;color:#584237;background:#f6f3f2;padding:12px;border-radius:12px;overflow-x:auto;line-height:1.6;">{
+  "timestamp": "2025-01-01T10:00:00",
+  "tanggal": "01/01/2025",
+  "waktu": "10:00",
+  "keterangan": "...",
+  "nama_proyek": "...",
+  "tag": "#Progres",
+  "foto_base64": "data:image/jpeg;base64,...",
+  "foto_filename": "snap_20250101_100000.jpg",
+  "device": "PWA SnapLedger"
+}</pre>
+    </div>
+
+    <div style="text-align:center;font-size:11px;color:#8c7165;padding:.5rem;">
+      Snapledger Simpel v1.0 • PWA
+    </div>
+  </main>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL DETAIL FOTO
+════════════════════════════════════════════ -->
+<div id="modal-detail" class="fixed inset-0 z-50 bg-black/60 flex items-end hidden" onclick="closeModal(event)">
+  <div class="bg-white w-full max-w-md mx-auto rounded-t-3xl p-5 flex flex-col gap-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="w-12 h-1 bg-gray-200 rounded-full mx-auto mb-1"></div>
+    <img id="modal-img" src="" alt="" class="w-full rounded-2xl object-cover" style="max-height:280px;"/>
+    <div>
+      <div style="font-size:11px;color:#584237;font-weight:500;letter-spacing:.04em;margin-bottom:4px;">KETERANGAN</div>
+      <p id="modal-keterangan" style="font-size:14px;color:#1b1c1c;line-height:1.6;"></p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <span id="modal-tag" class="status-badge status-pending"></span>
+      <span id="modal-status" class="status-badge"></span>
+    </div>
+    <div style="font-size:12px;color:#8c7165;" id="modal-meta"></div>
+    <div class="flex gap-3 mt-2">
+      <button id="modal-retry-btn" onclick="retryItem(currentModalId)" class="btn-secondary flex-1" style="height:44px;font-size:13px;">
+        <span class="material-symbols-outlined" style="font-size:16px;">replay</span> Kirim Ulang
+      </button>
+      <button onclick="deleteItem(currentModalId)" class="flex-1 h-11 rounded-2xl border border-red-200 text-red-600 font-semibold text-sm flex items-center justify-center gap-1">
+        <span class="material-symbols-outlined" style="font-size:16px;">delete</span> Hapus
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+<script>
+// ── CONFIG ───────────────────────────────────────────────────────
+const DB_NAME   = 'snapledger';
+const DB_VER    = 1;
+const STORE     = 'catatan';
+
+let db;
+let currentFilter  = 'semua';
+let currentSearch  = '';
+let currentModalId = null;
+let selectedTags   = new Set();
+let currentFotoB64 = null;
+let currentFotoName = null;
+let prevView = 'view-home';
+
+// ── INIT ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  await initDB();
+  loadWebhookUrl();
+  updateHome();
+
+  // Register SW
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'SYNC_RETRY') retrySemua();
+    });
+  }
+
+  // Online event → retry
+  window.addEventListener('online', () => {
+    showToast('Kembali online — mencoba kirim ulang...', 'info');
+    setTimeout(retrySemua, 1500);
+  });
+});
+
+// ── INDEXED DB ────────────────────────────────────────────────────
+function initDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const s = d.createObjectStore(STORE, { keyPath: 'id' });
+        s.createIndex('status', 'status');
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; res(); };
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbAdd(item) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).add(item);
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+function dbGetAll() {
+  return new Promise((res, rej) => {
+    const tx  = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+function dbUpdate(item) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(item);
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+function dbDelete(id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+function dbClear() {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).clear();
+    tx.oncomplete = res;
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────────
+function goTo(viewId) {
+  prevView = document.querySelector('.view.active')?.id || 'view-home';
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(viewId).classList.add('active');
+  window.scrollTo(0, 0);
+
+  if (viewId === 'view-home')    updateHome();
+  if (viewId === 'view-galeri')  renderGaleri();
+  if (viewId === 'view-settings') updateSettings();
+}
+
+function goBack() { goTo(prevView); }
+
+function showSettings() { goTo('view-settings'); }
+
+// ── FOTO HANDLING ─────────────────────────────────────────────────
+document.getElementById('inputKamera').addEventListener('change', handleFotoInput);
+document.getElementById('inputGaleri').addEventListener('change', handleFotoInput);
+
+function handleFotoInput(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const now    = new Date();
+  const dateStr = `${String(now.getDate()).padStart(2,'0')}${String(now.getMonth()+1).padStart(2,'0')}${now.getFullYear()}`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+  currentFotoName = `snap_${dateStr}_${timeStr}.jpg`;
+
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentFotoB64 = ev.target.result;
+    // Show preview
+    const img = document.getElementById('preview-img');
+    img.src = currentFotoB64;
+    img.classList.remove('hidden');
+    document.getElementById('viewfinder-area').style.display = 'none';
+    goTo('view-foto');
+  };
+  reader.readAsDataURL(file);
+  e.target.value = ''; // reset input
+}
+
+// ── TAGS ──────────────────────────────────────────────────────────
+function toggleTag(btn, tag) {
+  if (selectedTags.has(tag)) {
+    selectedTags.delete(tag);
+    btn.classList.remove('selected');
+  } else {
+    selectedTags.add(tag);
+    btn.classList.add('selected');
+  }
+}
+
+// ── SIMPAN & KIRIM ────────────────────────────────────────────────
+async function simpanDanKirim() {
+  if (!currentFotoB64) {
+    showToast('Pilih foto terlebih dahulu!', 'error'); return;
+  }
+  const keterangan = document.getElementById('input-keterangan').value.trim();
+  const namaProyek = document.getElementById('input-proyek').value.trim();
+  if (!keterangan) {
+    showToast('Isi keterangan terlebih dahulu!', 'error'); return;
+  }
+
+  const btn = document.getElementById('btn-simpan');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-symbols-outlined spinner">refresh</span> Menyimpan...';
+
+  const now = new Date();
+  const item = {
+    id:           `snap_${Date.now()}`,
+    timestamp:    now.toISOString(),
+    tanggal:      formatTanggal(now),
+    waktu:        formatWaktu(now),
+    keterangan,
+    nama_proyek:  namaProyek,
+    tag:          [...selectedTags].join(' ') || '',
+    foto_base64:  currentFotoB64,
+    foto_filename: currentFotoName,
+    device:       'PWA SnapLedger',
+    status:       'pending',
+    retries:      0,
+    created_at:   now.toISOString()
+  };
+
+  await dbAdd(item);
+  showToast('Foto tersimpan!', 'info');
+
+  // Kirim ke n8n
+  await kirimKeN8n(item);
+
+  // Reset form
+  resetForm();
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-symbols-outlined" style="font-variation-settings:\'FILL\' 1;">send</span> Simpan &amp; Kirim ke n8n';
+  goTo('view-home');
+}
+
+async function kirimKeN8n(item) {
+  const webhookUrl = localStorage.getItem('n8n_webhook_url');
+  if (!webhookUrl) {
+    showToast('⚠️ Webhook URL belum diisi. Set di Pengaturan.', 'error');
+    await dbUpdate({ ...item, status: 'failed', error: 'No webhook URL' });
+    return;
+  }
+
+  try {
+    const payload = {
+      timestamp:    item.timestamp,
+      tanggal:      item.tanggal,
+      waktu:        item.waktu,
+      keterangan:   item.keterangan,
+      nama_proyek:  item.nama_proyek,
+      tag:          item.tag,
+      foto_base64:  item.foto_base64,
+      foto_filename: item.foto_filename,
+      device:       item.device
+    };
+
+    const res = await fetch(webhookUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      await dbUpdate({ ...item, status: 'sent', sent_at: new Date().toISOString() });
+      showToast('✅ Berhasil dikirim ke n8n!', 'success');
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    await dbUpdate({ ...item, status: 'failed', error: err.message, retries: (item.retries || 0) + 1 });
+    showToast(`Gagal kirim: ${err.message}. Tersimpan lokal.`, 'error');
+  }
+}
+
+// ── RETRY ────────────────────────────────────────────────────────
+async function retrySemua() {
+  const all     = await dbGetAll();
+  const pending = all.filter(i => i.status === 'pending' || i.status === 'failed');
+  if (!pending.length) { showToast('Tidak ada item pending', 'info'); return; }
+
+  showToast(`Mencoba kirim ${pending.length} item...`, 'info');
+  for (const item of pending) await kirimKeN8n(item);
+  updateHome();
+  updateSettings();
+}
+
+async function retryItem(id) {
+  const all  = await dbGetAll();
+  const item = all.find(i => i.id === id);
+  if (item) { await kirimKeN8n(item); closeModalFn(); renderGaleri(); }
+}
+
+// ── DELETE ───────────────────────────────────────────────────────
+async function deleteItem(id) {
+  if (!confirm('Hapus catatan ini?')) return;
+  await dbDelete(id);
+  closeModalFn();
+  renderGaleri();
+  updateHome();
+  showToast('Catatan dihapus', 'info');
+}
+
+async function clearAllData() {
+  if (!confirm('Hapus SEMUA catatan? Tidak bisa dikembalikan.')) return;
+  await dbClear();
+  renderGaleri();
+  updateHome();
+  showToast('Semua catatan dihapus', 'info');
+}
+
+// ── HOME UPDATE ───────────────────────────────────────────────────
+async function updateHome() {
+  const all    = await dbGetAll();
+  const sent   = all.filter(i => i.status === 'sent').length;
+  const pending = all.filter(i => i.status === 'pending' || i.status === 'failed').length;
+  document.getElementById('stat-total').textContent   = all.length;
+  document.getElementById('stat-sent').textContent    = sent;
+  document.getElementById('stat-pending').textContent = pending;
+
+  const wh = localStorage.getItem('n8n_webhook_url');
+  document.getElementById('home-webhook-hint').textContent = wh
+    ? '🟢 n8n Terhubung'
+    : '⚠️ Atur webhook di Pengaturan';
+
+  // Recent list (3 terbaru)
+  const recent = [...all].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
+  const container = document.getElementById('home-recent');
+  if (!recent.length) {
+    container.innerHTML = '<div class="card-shadow bg-white rounded-3xl p-4 flex items-center justify-center" style="height:80px;"><p style="color:#8c7165;font-size:13px;">Belum ada catatan</p></div>';
+    return;
+  }
+  container.innerHTML = recent.map(item => `
+    <div class="card-shadow bg-white rounded-3xl p-3 flex gap-3 items-center fadein" onclick="openModal('${item.id}')">
+      <div class="w-16 h-16 rounded-2xl bg-surface-container-low shrink-0 overflow-hidden">
+        <img src="${item.foto_base64}" class="w-full h-full object-cover"/>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-semibold text-sm text-on-surface truncate">${item.keterangan}</p>
+        <p class="text-xs text-on-surface-variant mt-0.5">${item.tanggal} ${item.waktu}</p>
+        <span class="status-badge mt-1 ${item.status === 'sent' ? 'status-sent' : item.status === 'failed' ? 'status-failed' : 'status-pending'}">${item.status === 'sent' ? '✓ Terkirim' : item.status === 'failed' ? '✗ Gagal' : '⏳ Pending'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── GALERI ────────────────────────────────────────────────────────
+async function renderGaleri() {
+  const all = await dbGetAll();
+  let items = [...all].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (currentFilter !== 'semua') {
+    if (currentFilter === 'sent')    items = items.filter(i => i.status === 'sent');
+    if (currentFilter === 'pending') items = items.filter(i => i.status === 'pending');
+    if (currentFilter === 'failed')  items = items.filter(i => i.status === 'failed');
+  }
+  if (currentSearch) {
+    const q = currentSearch.toLowerCase();
+    items = items.filter(i =>
+      i.keterangan?.toLowerCase().includes(q) ||
+      i.tag?.toLowerCase().includes(q) ||
+      i.nama_proyek?.toLowerCase().includes(q)
+    );
+  }
+
+  const grid  = document.getElementById('galeri-grid');
+  const empty = document.getElementById('galeri-empty');
+
+  if (!items.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  grid.innerHTML = items.map(item => `
+    <article class="bg-white rounded-2xl card-shadow overflow-hidden cursor-pointer fadein" onclick="openModal('${item.id}')" style="transition:transform .15s;" onmousedown="this.style.transform='scale(.97)'" onmouseup="this.style.transform=''">
+      <div class="relative w-full aspect-square bg-surface-container-low">
+        <img src="${item.foto_base64}" class="w-full h-full object-cover" loading="lazy"/>
+        <div class="absolute top-2 right-2 bg-white/90 backdrop-blur px-2 py-0.5 rounded-full" style="font-size:10px;color:#584237;">
+          ${item.tanggal}
+        </div>
+        <div class="absolute bottom-2 left-2">
+          <span class="status-badge ${item.status === 'sent' ? 'status-sent' : item.status === 'failed' ? 'status-failed' : 'status-pending'}" style="font-size:9px;padding:.15rem .5rem;">
+            ${item.status === 'sent' ? '✓' : item.status === 'failed' ? '✗' : '⏳'}
+          </span>
+        </div>
+      </div>
+      <div class="p-2.5">
+        <p class="font-semibold text-xs text-on-surface line-clamp-1">${item.keterangan}</p>
+        ${item.tag ? `<p class="text-xs mt-1" style="color:#9b4000;">${item.tag}</p>` : ''}
+      </div>
+    </article>
+  `).join('');
+}
+
+function filterGaleri(val) { currentSearch = val; renderGaleri(); }
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-pill').forEach(p => {
+    p.style.background = '#fff';
+    p.style.color      = '#584237';
+    p.style.border     = '1px solid rgba(224,192,177,.5)';
+  });
+  btn.style.background = '#fecea5';
+  btn.style.color      = '#795635';
+  btn.style.border     = '1px solid #fecea5';
+  renderGaleri();
+}
+
+// ── MODAL ────────────────────────────────────────────────────────
+async function openModal(id) {
+  const all  = await dbGetAll();
+  const item = all.find(i => i.id === id);
+  if (!item) return;
+  currentModalId = id;
+
+  document.getElementById('modal-img').src           = item.foto_base64;
+  document.getElementById('modal-keterangan').textContent = item.keterangan;
+  document.getElementById('modal-tag').textContent   = item.tag || '-';
+  document.getElementById('modal-meta').textContent  = `${item.tanggal} ${item.waktu}${item.nama_proyek ? ' • ' + item.nama_proyek : ''}`;
+
+  const statusEl = document.getElementById('modal-status');
+  statusEl.textContent  = item.status === 'sent' ? '✓ Terkirim' : item.status === 'failed' ? '✗ Gagal' : '⏳ Pending';
+  statusEl.className    = `status-badge ${item.status === 'sent' ? 'status-sent' : item.status === 'failed' ? 'status-failed' : 'status-pending'}`;
+
+  document.getElementById('modal-retry-btn').style.display = item.status === 'sent' ? 'none' : '';
+  document.getElementById('modal-detail').classList.remove('hidden');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-detail')) closeModalFn();
+}
+function closeModalFn() {
+  document.getElementById('modal-detail').classList.add('hidden');
+  currentModalId = null;
+}
+
+// ── SETTINGS ─────────────────────────────────────────────────────
+function loadWebhookUrl() {
+  const url = localStorage.getItem('n8n_webhook_url') || '';
+  document.getElementById('webhook-url').value = url;
+}
+
+function simpanWebhook() {
+  const url = document.getElementById('webhook-url').value.trim();
+  if (url && !url.startsWith('http')) {
+    showToast('URL tidak valid', 'error'); return;
+  }
+  localStorage.setItem('n8n_webhook_url', url);
+  showToast('URL webhook tersimpan ✓', 'success');
+  updateHome();
+}
+
+async function updateSettings() {
+  const all     = await dbGetAll();
+  const pending = all.filter(i => i.status !== 'sent').length;
+  document.getElementById('pending-count-label').textContent = `${pending} item pending/gagal`;
+}
+
+async function testWebhook() {
+  const url = document.getElementById('webhook-url').value.trim();
+  if (!url) { showToast('Isi URL webhook terlebih dahulu', 'error'); return; }
+
+  const resultEl = document.getElementById('test-result');
+  resultEl.style.background = '#f6f3f2';
+  resultEl.style.color = '#584237';
+  resultEl.textContent = '⏳ Mengirim test ping...';
+  resultEl.classList.remove('hidden');
+
+  try {
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        timestamp:    new Date().toISOString(),
+        tanggal:      formatTanggal(new Date()),
+        waktu:        formatWaktu(new Date()),
+        keterangan:   'TEST PING dari Snapledger Simpel',
+        nama_proyek:  'Test',
+        tag:          '#Test',
+        foto_base64:  '',
+        foto_filename: 'test.jpg',
+        device:       'PWA SnapLedger'
+      })
+    });
+    resultEl.style.background = '#e8f5e9';
+    resultEl.style.color = '#2e7d32';
+    resultEl.textContent = `✅ Berhasil! HTTP ${res.status} — n8n menerima data`;
+    showToast('Koneksi berhasil!', 'success');
+  } catch (err) {
+    resultEl.style.background = '#ffebee';
+    resultEl.style.color = '#c62828';
+    resultEl.textContent = `❌ Gagal: ${err.message}`;
+    showToast('Koneksi gagal', 'error');
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────
+function resetForm() {
+  currentFotoB64 = null;
+  currentFotoName = null;
+  selectedTags.clear();
+  document.getElementById('input-keterangan').value = '';
+  document.getElementById('input-proyek').value = '';
+  document.getElementById('preview-img').classList.add('hidden');
+  document.getElementById('preview-img').src = '';
+  document.getElementById('viewfinder-area').style.display = '';
+  document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('selected'));
+}
+
+function formatTanggal(d) {
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function formatWaktu(d) {
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+let toastTimer;
+function showToast(msg, type = 'info') {
+  const t  = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast ${type}`;
+  t.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+</script>
+</body>
+</html>
